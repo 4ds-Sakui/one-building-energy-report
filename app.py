@@ -1,9 +1,7 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
+'''
 one building 技術レポート生成ツール
 省エネ診断レポートPowerPoint自動生成Webアプリ
-"""
+'''
 
 import streamlit as st
 import io
@@ -69,7 +67,7 @@ st.markdown('<div class="sub-title">省エネ診断レポートを自動生成�
 
 # サイドバー
 with st.sidebar:
-    st.image("https://via.placeholder.com/200x80/397577/FFFFFF?text=one+building", use_container_width=True)
+    st.image("https://via.placeholder.com/200x80/397577/FFFFFF?text=one+building", width=200)
     st.markdown("---")
     st.markdown("### 📋 使い方")
     st.markdown("""
@@ -117,7 +115,6 @@ col1, col2 = st.columns([2, 1])
 with col1:
     st.markdown("### 📁 ファイルアップロード")
     
-    # 注意書きを表示
     st.info("""
     💡 **推奨**: より正確なデータ抽出のため、**Markdown/テキスト形式（.txt, .md）** のファイルをご利用ください。  
     PDFファイルは表の構造が崩れる場合があり、データ抽出精度が低下する可能性があります。
@@ -150,17 +147,13 @@ if uploaded_file is not None:
     
     col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
     with col_btn2:
-        generate_button = st.button("🚀 レポート生成", use_container_width=True)
+        generate_button = st.button("🚀 レポート生成", width=400)
     
     if generate_button:
         try:
             with st.spinner('📊 データを抽出しています...'):
-                # ファイルポインタを先頭に戻す
                 uploaded_file.seek(0)
-                
-                # データ抽出
                 data = extract_data_from_file(uploaded_file, uploaded_file.name)
-                
                 st.success(f"✅ データ抽出完了: {data['building_name']}")
             
             # 抽出データの表示
@@ -186,7 +179,6 @@ if uploaded_file is not None:
             
             # グラフ生成
             with st.spinner('📈 グラフを生成しています...'):
-                # BytesIO形式でグラフを生成（PowerPoint用）
                 chart_bei_bytes = create_bei_comparison_chart_with_total(data)
                 
                 calc_method = data.get('calculation_method', 'standard_input')
@@ -194,12 +186,10 @@ if uploaded_file is not None:
                     chart_stacked_bytes = create_stacked_bar_chart_improved(data)
                     chart_pie_bytes = create_pie_charts(data)
                 else:
-                    # モデル建物法の場合はダミーのBytesIO
                     chart_stacked_bytes = io.BytesIO()
                     chart_pie_bytes = io.BytesIO()
                 
                 # HTMLスライド用にmatplotlib figureを生成
-                # BEI比較グラフ
                 chart_bei_bytes.seek(0)
                 from PIL import Image
                 bei_img = Image.open(chart_bei_bytes)
@@ -207,7 +197,6 @@ if uploaded_file is not None:
                 ax_bei.imshow(bei_img)
                 ax_bei.axis('off')
                 
-                # エネルギー消費量グラフ
                 fig_energy = None
                 if calc_method == 'standard_input':
                     chart_stacked_bytes.seek(0)
@@ -216,7 +205,6 @@ if uploaded_file is not None:
                     ax_energy.imshow(energy_img)
                     ax_energy.axis('off')
                 
-                # パイチャート
                 fig_pie = None
                 if calc_method == 'standard_input':
                     chart_pie_bytes.seek(0)
@@ -230,7 +218,6 @@ if uploaded_file is not None:
                     'energy_chart': fig_energy,
                     'pie_chart': fig_pie
                 }
-                
                 st.success("✅ グラフ生成完了")
             
             # レポート生成
@@ -239,17 +226,10 @@ if uploaded_file is not None:
             
             if output_format in ["PowerPoint (.pptx)", "両方"]:
                 with st.spinner('📄 PowerPointレポートを生成しています...'):
-                    # BytesIOをリセット
                     chart_bei_bytes.seek(0)
                     chart_stacked_bytes.seek(0)
                     chart_pie_bytes.seek(0)
-                    
-                    pptx_bytes = create_presentation(
-                        data,
-                        chart_stacked_bytes,
-                        chart_pie_bytes,
-                        chart_bei_bytes
-                    )
+                    pptx_bytes = create_presentation(data, chart_stacked_bytes, chart_pie_bytes, chart_bei_bytes)
                     st.success("✅ PowerPointレポート生成完了")
             
             if output_format in ["HTMLスライド (.html)", "両方"]:
@@ -261,12 +241,10 @@ if uploaded_file is not None:
             st.markdown("---")
             st.markdown("### 📥 ダウンロード・表示")
             
-            # ファイル名を生成
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename_pptx = f"Energy_Diagnosis_Report_{data['building_name']}_{timestamp}.pptx"
             filename_html = f"Energy_Diagnosis_Report_{data['building_name']}_{timestamp}.html"
             
-            # ダウンロードボタン
             if pptx_bytes:
                 col_dl1, col_dl2, col_dl3 = st.columns([1, 2, 1])
                 with col_dl2:
@@ -275,7 +253,7 @@ if uploaded_file is not None:
                         data=pptx_bytes,
                         file_name=filename_pptx,
                         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                        use_container_width=True
+                        width=400
                     )
             
             if html_content:
@@ -286,60 +264,29 @@ if uploaded_file is not None:
                         data=html_content.encode('utf-8'),
                         file_name=filename_html,
                         mime="text/html",
-                        use_container_width=True
+                        width=400
                     )
                 
-                # HTMLプレビュー
                 st.markdown("---")
                 st.markdown("### 👀 HTMLスライドプレビュー")
                 st.info("💡 ダウンロードしたHTMLファイルをブラウザで開くと、フルスクリーンでスライドを表示できます。")
-                
-                # iframeで表示（高さを調整）
                 st.components.v1.html(html_content, height=600, scrolling=True)
             
             st.markdown('<div class="success-box">', unsafe_allow_html=True)
-            output_info = []
-            if pptx_bytes:
-                output_info.append(f"PowerPoint: {filename_pptx}")
-            if html_content:
-                output_info.append(f"HTMLスライド: {filename_html}")
-            
-            st.markdown(f"""
-            **✨ レポート生成が完了しました！**
-            
-            - **建物名**: {data['building_name']}
-            - **計算方法**: {'モデル建物法' if data.get('calculation_method') == 'model_building' else '標準入力法'}
-            - **スライド数**: {'5枚' if data.get('calculation_method') == 'model_building' else '7枚'}
-            - **出力形式**: {', '.join(output_info)}
-            
-            上のボタンからダウンロードしてください。
-            """)
+            st.markdown(f"**✨ レポート生成が完了しました！**")
             st.markdown('</div>', unsafe_allow_html=True)
             
         except Exception as e:
             st.error(f"❌ エラーが発生しました: {str(e)}")
             st.exception(e)
-
 else:
-    # ファイル未選択時の案内
     st.info("👆 まず、省エネ計算結果のファイルをアップロードしてください。")
-    
-    st.markdown("---")
-    st.markdown("### 📖 サンプルデータ")
-    st.markdown("""
-    以下のような省エネ計算結果ファイルに対応しています:
-    
-    - **標準入力法**: 詳細なエネルギー消費量データを含むPDF/テキスト
-    - **モデル建物法**: BEI/BPIm値を含むPDF
-    
-    ファイルをアップロードすると、自動的に計算方法を判定し、適切なレポートを生成します。
-    """)
 
 # フッター
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #6c757d; font-size: 0.9rem;">
     <p>© 2026 one building | BIM sustaina for Energy</p>
-    <p>技術レポート自動生成ツール v1.0</p>
+    <p>技術レポート自動生成ツール v1.1</p>
 </div>
 """, unsafe_allow_html=True)

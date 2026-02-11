@@ -8,29 +8,22 @@ from io import BytesIO
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-# 共通定数（report_generator.pyの定義と同期）
-COLOR_MAIN = "#397577"
-COLOR_RED = "#E63946"
-COLOR_GREEN = "#2A9D8F"
-COLOR_GRAY = "#6D6D6D"
-COLOR_BLACK = "#333333"
+# カラー定数の定義（report_generator.pyのRGBColor型との競合を避けるため文字列で定義）
+COLOR_MAIN_HEX = "#397577"
+COLOR_RED_HEX = "#E63946"
+COLOR_GREEN_HEX = "#2A9D8F"
+COLOR_GRAY_HEX = "#6D6D6D"
+COLOR_BLACK_HEX = "#333333"
 
-def get_bei_label(calc_method):
+def get_bei_label_local(calc_method):
     return "BEIm" if calc_method == "モデル建物法" else "BEI"
 
-def get_bpi_label(calc_method):
+def get_bpi_label_local(calc_method):
     return "BPIm" if calc_method == "モデル建物法" else "BPI"
 
 def generate_html_slides(data, charts):
     """
     データとグラフからHTMLスライドを生成する
-    
-    Args:
-        data (dict): 抽出されたデータ
-        charts (dict): グラフオブジェクト（FigureまたはBytesIO）
-    
-    Returns:
-        str: HTML文字列
     """
     
     # グラフをBase64エンコード
@@ -51,47 +44,44 @@ def generate_html_slides(data, charts):
     
     # 基本情報
     building_name = data.get('building_name', '不明')
-    building_type = data.get('building_type', '不明')
     location = data.get('location', '不明')
     total_area = data.get('total_area', 'N/A')
     calc_method = data.get('calculation_method', 'standard_input')
     bei_total = data.get('bei_total', 0.0)
-    bei_label = get_bei_label(calc_method)
-    bpi_label = get_bpi_label(calc_method)
-    
-    # --- 動的評価ロジック (slides.pyから移植) ---
+    bei_label = get_bei_label_local(calc_method)
+    bpi_label = get_bpi_label_local(calc_method)
     
     # 1. 診断結果とZEBレベルの判定
     if bei_total > 1.0:
         status_text = "診断結果: 2024年基準非適合"
-        status_color = COLOR_RED
+        status_color = COLOR_RED_HEX
         zeb_level = "ZEB基準未達成"
         is_compliant = False
     elif bei_total > 0.80:
         status_text = "診断結果: H28年基準適合 / 2024年基準非適合"
-        status_color = COLOR_RED
+        status_color = COLOR_RED_HEX
         zeb_level = "ZEB基準未達成"
         is_compliant = False
     elif bei_total > 0.70:
         status_text = "診断結果: 2024年基準適合"
-        status_color = COLOR_GREEN
+        status_color = COLOR_GREEN_HEX
         zeb_level = "ZEB Oriented相当（未認定）"
         is_compliant = True
     elif bei_total > 0.50:
         status_text = "診断結果: 2024年基準適合"
-        status_color = COLOR_GREEN
+        status_color = COLOR_GREEN_HEX
         zeb_level = "ZEB Ready相当（未認定）"
         is_compliant = True
     else:
         status_text = "診断結果: 2024年基準適合"
-        status_color = COLOR_GREEN
+        status_color = COLOR_GREEN_HEX
         zeb_level = "Nearly ZEB相当（未認定）"
         is_compliant = True
 
     # 2. 経営リスク/優位性の判定
     if not is_compliant:
         risk_title = "▲重要: 経営リスクの特定"
-        risk_color = COLOR_RED
+        risk_color = COLOR_RED_HEX
         risk_bg = "#FFF3F3"
         risk_main_desc = "2024年4月施行の改正省エネ法（BEI 1.0以下義務化）に対応していません。"
         risk_legal = "適合判定（省エネ適判）をパスできず、建築確認申請が受理されません。"
@@ -99,7 +89,7 @@ def generate_html_slides(data, charts):
         risk_asset = "ESG投資基準を満たせず、企業価値が低下する可能性があります。"
     else:
         risk_title = "▲優位性: 省エネ性能の強み"
-        risk_color = COLOR_GREEN
+        risk_color = COLOR_GREEN_HEX
         risk_bg = "#F3FFF3"
         risk_main_desc = f"2024年基準に適合し、{zeb_level}の省エネ性能を有しています。"
         risk_legal = "省エネ適判をクリアし、建築確認申請がスムーズに進みます。"
@@ -108,10 +98,10 @@ def generate_html_slides(data, charts):
 
     # 3. 外皮性能評価
     pal_design = data.get('pal_design', 0.0)
-    pal_standard = data.get('pal_standard', 1.0) # デフォルト値
+    pal_standard = data.get('pal_standard', 1.0)
     bpi_val = data.get('bpi', 0.0)
     bpi_status = "良好" if bpi_val < 1.0 else "要改善"
-    bpi_color = COLOR_GREEN if bpi_val < 1.0 else COLOR_RED
+    bpi_color = COLOR_GREEN_HEX if bpi_val < 1.0 else COLOR_RED_HEX
     
     # 4. ワースト室分析
     worst_rooms = data.get('worst_rooms', [])
@@ -122,7 +112,7 @@ def generate_html_slides(data, charts):
         over_rate = ((worst_room_q - pal_standard) / pal_standard * 100) if pal_standard > 0 else 0
         
         if 'ミーティング' in worst_room_name or '会議' in worst_room_name:
-            load_factors = "南側または西側の大きな窓面積による日射負荷、高い人員密度と内部発熱、窓の遮熱性能不足"
+            load_factors = "南側または西側の大きな窓面積による日射負荷、高い人員密度と内部発発熱、窓の遮熱性能不足"
         elif '事務' in worst_room_name:
             load_factors = "OA機器による内部発熱、窓面積比率が高い可能性、断熱性能の不足"
         else:
@@ -131,7 +121,7 @@ def generate_html_slides(data, charts):
         worst_analysis_html = f'''
             <div class="worst-factor-item">
                 <div class="worst-factor-label">最大ワースト室: {worst_room_name}</div>
-                <div class="worst-factor-value" style="color: {COLOR_RED};">超過率: +{over_rate:.0f}%</div>
+                <div class="worst-factor-value" style="color: {COLOR_RED_HEX};">超過率: +{over_rate:.0f}%</div>
                 <p class="worst-factor-description">
                     <strong>負荷要因:</strong> {load_factors}<br>
                     <strong>改善策:</strong> 窓の遮熱性能向上（Low-Eガラス、外付けブラインド等）により、建物全体のPAL*を大幅に改善可能な優先箇所です。
@@ -167,11 +157,11 @@ def generate_html_slides(data, charts):
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {{
-            --main-color: {COLOR_MAIN};
-            --red-color: {COLOR_RED};
-            --green-color: {COLOR_GREEN};
-            --text-dark: {COLOR_BLACK};
-            --text-light: {COLOR_GRAY};
+            --main-color: {COLOR_MAIN_HEX};
+            --red-color: {COLOR_RED_HEX};
+            --green-color: {COLOR_GREEN_HEX};
+            --text-dark: {COLOR_BLACK_HEX};
+            --text-light: {COLOR_GRAY_HEX};
             --base-bg: #f6f6f6;
         }}
         
