@@ -10,6 +10,8 @@ import io
 from datetime import datetime
 from report_generator import extract_data_from_file, create_stacked_bar_chart_improved, create_pie_charts, create_bei_comparison_chart_with_total
 from slides import create_presentation
+from html_slides_generator import generate_html_slides
+import matplotlib.pyplot as plt
 
 # ページ設定
 st.set_page_config(
@@ -135,8 +137,12 @@ with col1:
         st.markdown('</div>', unsafe_allow_html=True)
 
 with col2:
-    st.markdown("### ⚙️ 生成オプション")
-    st.info("現在、すべてのオプションは自動設定されます")
+    st.markdown("### ⚙️ 出力形式")
+    output_format = st.radio(
+        "レポートの出力形式を選択してください",
+        ["PowerPoint (.pptx)", "HTMLスライド (.html)", "両方"],
+        help="PowerPoint: ダウンロードして編集可能 | HTMLスライド: ブラウザで直接表示可能"
+    )
 
 # レポート生成ボタン
 if uploaded_file is not None:
@@ -180,6 +186,7 @@ if uploaded_file is not None:
             
             # グラフ生成
             with st.spinner('📈 グラフを生成しています...'):
+                # BytesIO形式でグラフを生成（PowerPoint用）
                 chart_bei_bytes = create_bei_comparison_chart_with_total(data)
                 
                 calc_method = data.get('calculation_method', 'standard_input')
@@ -191,45 +198,119 @@ if uploaded_file is not None:
                     chart_stacked_bytes = io.BytesIO()
                     chart_pie_bytes = io.BytesIO()
                 
+                # HTMLスライド用にmatplotlib figureを生成
+                # BEI比較グラフ
+                chart_bei_bytes.seek(0)
+                from PIL import Image
+                bei_img = Image.open(chart_bei_bytes)
+                fig_bei, ax_bei = plt.subplots(figsize=(10, 6))
+                ax_bei.imshow(bei_img)
+                ax_bei.axis('off')
+                
+                # エネルギー消費量グラフ
+                fig_energy = None
+                if calc_method == 'standard_input':
+                    chart_stacked_bytes.seek(0)
+                    energy_img = Image.open(chart_stacked_bytes)
+                    fig_energy, ax_energy = plt.subplots(figsize=(10, 6))
+                    ax_energy.imshow(energy_img)
+                    ax_energy.axis('off')
+                
+                # パイチャート
+                fig_pie = None
+                if calc_method == 'standard_input':
+                    chart_pie_bytes.seek(0)
+                    pie_img = Image.open(chart_pie_bytes)
+                    fig_pie, ax_pie = plt.subplots(figsize=(10, 6))
+                    ax_pie.imshow(pie_img)
+                    ax_pie.axis('off')
+                
+                charts = {
+                    'bei_chart': fig_bei,
+                    'energy_chart': fig_energy,
+                    'pie_chart': fig_pie
+                }
+                
                 st.success("✅ グラフ生成完了")
             
-            # PowerPoint生成
-            with st.spinner('📄 PowerPointレポートを生成しています...'):
-                pptx_bytes = create_presentation(
-                    data,
-                    chart_stacked_bytes,
-                    chart_pie_bytes,
-                    chart_bei_bytes
-                )
-                
-                st.success("✅ PowerPointレポート生成完了")
+            # レポート生成
+            pptx_bytes = None
+            html_content = None
             
-            # ダウンロードボタン
+            if output_format in ["PowerPoint (.pptx)", "両方"]:
+                with st.spinner('📄 PowerPointレポートを生成しています...'):
+                    # BytesIOをリセット
+                    chart_bei_bytes.seek(0)
+                    chart_stacked_bytes.seek(0)
+                    chart_pie_bytes.seek(0)
+                    
+                    pptx_bytes = create_presentation(
+                        data,
+                        chart_stacked_bytes,
+                        chart_pie_bytes,
+                        chart_bei_bytes
+                    )
+                    st.success("✅ PowerPointレポート生成完了")
+            
+            if output_format in ["HTMLスライド (.html)", "両方"]:
+                with st.spinner('🌐 HTMLスライドを生成しています...'):
+                    html_content = generate_html_slides(data, charts)
+                    st.success("✅ HTMLスライド生成完了")
+            
+            # ダウンロード・表示
             st.markdown("---")
-            st.markdown("### 📥 ダウンロード")
+            st.markdown("### 📥 ダウンロード・表示")
             
             # ファイル名を生成
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"Energy_Diagnosis_Report_{data['building_name']}_{timestamp}.pptx"
+            filename_pptx = f"Energy_Diagnosis_Report_{data['building_name']}_{timestamp}.pptx"
+            filename_html = f"Energy_Diagnosis_Report_{data['building_name']}_{timestamp}.html"
             
-            col_dl1, col_dl2, col_dl3 = st.columns([1, 2, 1])
-            with col_dl2:
-                st.download_button(
-                    label="💾 PowerPointをダウンロード",
-                    data=pptx_bytes,
-                    file_name=filename,
-                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                    use_container_width=True
-                )
+            # ダウンロードボタン
+            if pptx_bytes:
+                col_dl1, col_dl2, col_dl3 = st.columns([1, 2, 1])
+                with col_dl2:
+                    st.download_button(
+                        label="💾 PowerPointをダウンロード",
+                        data=pptx_bytes,
+                        file_name=filename_pptx,
+                        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        use_container_width=True
+                    )
+            
+            if html_content:
+                col_html1, col_html2, col_html3 = st.columns([1, 2, 1])
+                with col_html2:
+                    st.download_button(
+                        label="🌐 HTMLスライドをダウンロード",
+                        data=html_content.encode('utf-8'),
+                        file_name=filename_html,
+                        mime="text/html",
+                        use_container_width=True
+                    )
+                
+                # HTMLプレビュー
+                st.markdown("---")
+                st.markdown("### 👀 HTMLスライドプレビュー")
+                st.info("💡 ダウンロードしたHTMLファイルをブラウザで開くと、フルスクリーンでスライドを表示できます。")
+                
+                # iframeで表示（高さを調整）
+                st.components.v1.html(html_content, height=600, scrolling=True)
             
             st.markdown('<div class="success-box">', unsafe_allow_html=True)
+            output_info = []
+            if pptx_bytes:
+                output_info.append(f"PowerPoint: {filename_pptx}")
+            if html_content:
+                output_info.append(f"HTMLスライド: {filename_html}")
+            
             st.markdown(f"""
             **✨ レポート生成が完了しました！**
             
             - **建物名**: {data['building_name']}
             - **計算方法**: {'モデル建物法' if data.get('calculation_method') == 'model_building' else '標準入力法'}
             - **スライド数**: {'5枚' if data.get('calculation_method') == 'model_building' else '7枚'}
-            - **ファイル名**: {filename}
+            - **出力形式**: {', '.join(output_info)}
             
             上のボタンからダウンロードしてください。
             """)
