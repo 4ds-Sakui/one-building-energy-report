@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-データ抽出・評価モジュール (v1.4.3)
+データ抽出・評価モジュール (v1.4.5)
 モデル建物法の詳細項目抽出、ZEB比較ロジック、標準入力法サンプル統合対応
 """
 
@@ -12,6 +12,10 @@ import io
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use("Agg")
+
+# 日本語フォントの設定
+matplotlib.rcParams["font.family"] = "Noto Sans CJK JP"
+matplotlib.rcParams["font.sans-serif"] = ["Noto Sans CJK JP"]
 
 # カラー定義
 COLOR_MAIN = "#397577"
@@ -103,25 +107,32 @@ def extract_data_from_markdown(content):
         'target': '達成' if data.get('bei_target', 1.0) <= 0.6 else '非達成'
     }
 
+    # 数値変換を試みるヘルパー関数
+    def to_float_or_str(value):
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return value
+
     # モデル建物法詳細項目の抽出 (PAL6-23)
     for code in range(6, 24):
         pattern = rf'PAL{code}\s*\|\s*[^|]*\|\s*([\d.]+)'
         m = re.search(pattern, content)
-        if m: data['envelope_details'][f'PAL{code}'] = float(m.group(1))
+        if m: data['envelope_details'][f'PAL{code}'] = to_float_or_str(m.group(1))
 
     # 空調詳細 (AC1, AC4, AC6, AC7, AC10, AC12, AC13)
     for code in [1, 4, 6, 7, 10, 12, 13]:
         pattern = rf'AC{code}\s*\|\s*[^|]*\|\s*([^|\n]*)'
         m = re.search(pattern, content)
-        if m: data['equipment_details'][f'AC{code}'] = m.group(1).strip()
+        if m: data['equipment_details'][f'AC{code}'] = to_float_or_str(m.group(1).strip())
 
     # 換気 (V5-7)
-    v_sections = ["機械室", "便所", "駐車場", "厨房"]
-    for section in v_sections:
-        section_pattern = rf'\*\*{section}\*\*\n.*?\| V5 \|.*?\| ([^|\n]*) \|.*?\| V6 \|.*?\| ([^|\n]*) \|.*?\| V7 \|.*?\| ([^|\n]*) \|'
+    v_sections = [("機械室", "V_機械室"), ("便所", "V_便所"), ("駐車場", "V_駐車場"), ("厨房", "V_厨房")]
+    for section_name, key_name in v_sections:
+        section_pattern = rf'\*\*{section_name}\*\*\n.*?\| V5 \|.*?\| ([^|\n]*) \|.*?\| V6 \|.*?\| ([^|\n]*) \|.*?\| V7 \|.*?\| ([^|\n]*) \|'
         m = re.search(section_pattern, content, re.DOTALL)
         if m:
-            data['equipment_details'][f'V_{section}'] = {
+            data['equipment_details'][key_name] = {
                 'V5': m.group(1).strip(),
                 'V6': m.group(2).strip(),
                 'V7': m.group(3).strip()
@@ -139,12 +150,12 @@ def extract_data_from_markdown(content):
         }
 
     # 給湯 (HW4-5)
-    hw_sections = ["洗面手洗い", "浴室", "厨房"]
-    for section in hw_sections:
-        section_pattern = rf'\*\*{section}\*\*\n.*?\| HW4 \|.*?\| ([^|\n]*) \|.*?\| HW5 \|.*?\| ([^|\n]*) \|'
+    hw_sections = [("洗面手洗い", "HW_洗面手洗い"), ("浴室", "HW_浴室"), ("厨房", "HW_厨房")]
+    for section_name, key_name in hw_sections:
+        section_pattern = rf'\*\*{section_name}\*\*\n.*?\| HW4 \|.*?\| ([^|\n]*) \|.*?\| HW5 \|.*?\| ([^|\n]*) \|'
         m = re.search(section_pattern, content, re.DOTALL)
         if m:
-            data['equipment_details'][f'HW_{section}'] = {
+            data['equipment_details'][key_name] = {
                 'HW4': m.group(1).strip(),
                 'HW5': m.group(2).strip()
             }
@@ -158,22 +169,36 @@ def get_zeb_comparison(data):
     comparison = []
     
     # 外皮性能
-    u_wall = data['envelope_details'].get('PAL12', 1.0)
+    u_wall = data['envelope_details'].get('PAL12', None)
     comparison.append({
-        'category': '外壁断熱 (U値)',
-        'current': f"{u_wall:.2f}",
+        'category': '外壁U値',
+        'current': f"{u_wall:.2f}" if isinstance(u_wall, (int, float)) else str(u_wall),
         'zeb_target': "0.60以下",
-        'status': '良好' if u_wall <= 0.6 else '要改善',
+        'status': '良好' if (isinstance(u_wall, (int, float)) and u_wall <= 0.6) else '要改善',
         'action': '断熱材の厚肉化'
     })
     
-    u_window = data['envelope_details'].get('PAL20', 3.0)
+    u_window = data['envelope_details'].get('PAL20', None)
     comparison.append({
-        'category': '窓断熱 (U値)',
-        'current': f"{u_window:.2f}",
+        'category': '窓U値',
+        'current': f"{u_window:.2f}" if isinstance(u_window, (int, float)) else str(u_window),
         'zeb_target': "2.33以下",
-        'status': '良好' if u_window <= 2.33 else '要改善',
+        'status': '良好' if (isinstance(u_window, (int, float)) and u_window <= 2.33) else '要改善',
         'action': 'Low-E複層ガラス採用'
+    })
+
+    # 開口率の計算とZEB目標
+    total_wall_area_net = sum(data['envelope_details'].get(f'PAL{i}', 0) for i in range(6, 10)) # PAL6-9: 外壁面積 (窓を除く)
+    total_window_area = sum(data['envelope_details'].get(f'PAL{i}', 0) for i in range(15, 19)) # PAL15-18: 窓面積
+    
+    # 開口率 = 窓面積 / (外壁面積 + 窓面積)
+    opening_ratio = (total_window_area / (total_wall_area_net + total_window_area) * 100) if (total_wall_area_net + total_window_area) > 0 else 0
+    comparison.append({
+        'category': '開口率',
+        'current': f"{opening_ratio:.1f}%",
+        'zeb_target': "30%以下",
+        'status': '良好' if opening_ratio <= 30 else '要改善',
+        'action': '窓面積の削減、高断熱化'
     })
 
     # 空調
@@ -182,8 +207,122 @@ def get_zeb_comparison(data):
         'category': '主たる熱源',
         'current': ac_type,
         'zeb_target': "高効率ヒートポンプ等",
-        'status': '良好' if "ヒートポンプ" in ac_type or "エアコン" in ac_type else '要検討',
+        'status': '良好' if "ヒートポンプ" in str(ac_type) or "エアコン" in str(ac_type) else '要検討',
         'action': '電気式高効率ヒートポンプへの転換'
+    })
+    
+    ac_efficiency = data['equipment_details'].get('AC6', None)
+    comparison.append({
+        'category': '熱源効率 (AC6)',
+        'current': f"{ac_efficiency:.2f}" if isinstance(ac_efficiency, (int, float)) else str(ac_efficiency),
+        'zeb_target': "1.2以上",
+        'status': '良好' if (isinstance(ac_efficiency, (int, float)) and ac_efficiency >= 1.2) else '要改善',
+        'action': '高効率熱源機の導入'
+    })
+    
+    ac_total_heat_exchanger = data['equipment_details'].get('AC13', '無')
+    comparison.append({
+        'category': '全熱交換器',
+        'current': ac_total_heat_exchanger,
+        'zeb_target': "有",
+        'status': '良好' if str(ac_total_heat_exchanger) == '有' else '要検討',
+        'action': '全熱交換器の導入'
+    })
+
+    # 換気 (V5-7)
+    v_control_machine_room = data['equipment_details'].get('V_機械室', {}).get('V7', '無')
+    comparison.append({
+        'category': '換気制御 (機械室)',
+        'current': v_control_machine_room,
+        'zeb_target': "有",
+        'status': '良好' if v_control_machine_room == '有' else '要検討',
+        'action': '送風量制御の導入'
+    })
+    # V5-7の他の制御も追加
+    v_control_toilet = data['equipment_details'].get('V_便所', {}).get('V7', '無')
+    comparison.append({
+        'category': '換気制御 (便所)',
+        'current': v_control_toilet,
+        'zeb_target': "有",
+        'status': '良好' if v_control_toilet == '有' else '要検討',
+        'action': '送風量制御の導入'
+    })
+    v_control_parking = data['equipment_details'].get('V_駐車場', {}).get('V7', '無')
+    comparison.append({
+        'category': '換気制御 (駐車場)',
+        'current': v_control_parking,
+        'zeb_target': "有",
+        'status': '良好' if v_control_parking == '有' else '要検討',
+        'action': '送風量制御の導入'
+    })
+    v_control_kitchen = data['equipment_details'].get('V_厨房', {}).get('V7', '無')
+    comparison.append({
+        'category': '換気制御 (厨房)',
+        'current': v_control_kitchen,
+        'zeb_target': "有",
+        'status': '良好' if v_control_kitchen == '有' else '要検討',
+        'action': '送風量制御の導入'
+    })
+
+    # 照明 (L4-7)
+    l_occupancy_sensor = data['equipment_details'].get('L', {}).get('L4', '無')
+    l_brightness_sensor = data['equipment_details'].get('L', {}).get('L5', '無')
+    comparison.append({
+        'category': '照明制御 (在室検知)',
+        'current': l_occupancy_sensor,
+        'zeb_target': "有",
+        'status': '良好' if l_occupancy_sensor == '有' else '要検討',
+        'action': '人感センサーの導入'
+    })
+    comparison.append({
+        'category': '照明制御 (明るさ)',
+        'current': l_brightness_sensor,
+        'zeb_target': "有",
+        'status': '良好' if l_brightness_sensor == '有' else '要検討',
+        'action': '昼光利用制御の導入'
+    })
+    # L6, L7も追加
+    l_time_control = data['equipment_details'].get('L', {}).get('L6', '無')
+    comparison.append({
+        'category': '照明制御 (時間)',
+        'current': l_time_control,
+        'zeb_target': "有",
+        'status': '良好' if l_time_control == '有' else '要検討',
+        'action': '時間制御の導入'
+    })
+    l_partial_lighting = data['equipment_details'].get('L', {}).get('L7', '無')
+    comparison.append({
+        'category': '照明制御 (部分照明)',
+        'current': l_partial_lighting,
+        'zeb_target': "有",
+        'status': '良好' if l_partial_lighting == '有' else '要検討',
+        'action': '部分照明の導入'
+    })
+
+    # 給湯 (HW4-5)
+    hw_washroom_saving = data['equipment_details'].get('HW_洗面手洗い', {}).get('HW5', '無')
+    comparison.append({
+        'category': '給湯設備 (洗面節湯)',
+        'current': hw_washroom_saving,
+        'zeb_target': "有",
+        'status': '良好' if hw_washroom_saving == '有' else '要検討',
+        'action': '節湯器具の導入'
+    })
+    hw_bathroom_saving = data['equipment_details'].get('HW_浴室', {}).get('HW5', '無')
+    comparison.append({
+        'category': '給湯設備 (浴室節湯)',
+        'current': hw_bathroom_saving,
+        'zeb_target': "有",
+        'status': '良好' if hw_bathroom_saving == '有' else '要検討',
+        'action': '節湯器具の導入'
+    })
+    hw_kitchen_saving = data['equipment_details'].get('HW_厨房', {}).get('HW5', '無')
+    comparison.append({
+        'category': '給湯設備 (厨房節湯)',
+        'current': hw_kitchen_saving,
+        'zeb_target': "有",
+        'status': '良好' if hw_kitchen_saving == '有' else '要検討',
+        'action': '節湯器具の導入'
     })
 
     return comparison
@@ -232,22 +371,5 @@ def extract_standard_sample_data(content):
     """
     チラ見せ用に標準入力法サンプルからデータを抽出
     """
-    sample_data = {
-        'energy_distribution': {'空調': 65, '照明': 15, '換気': 10, '給湯': 5, 'その他': 5},
-        'worst_rooms': [
-            {'name': '事務室', 'bpi': 1.43, 'reason': '日射負荷', 'action': 'Low-Eガラス'},
-            {'name': '会議室', 'bpi': 1.25, 'reason': '換気負荷', 'action': '全熱交換器'},
-            {'name': 'ロビー', 'bpi': 1.10, 'reason': '外壁断熱', 'action': '断熱強化'}
-        ]
-    }
-    # 実際の抽出ロジック（サンプルMarkdown用）
-    m = re.findall(r'\| ([^|]+) \| ([\d.]+) \| ([\d.]+) \| ([\d.]+) \|', content)
-    if m:
-        # BPIワースト室の抽出（例）
-        rooms = []
-        for name, design, base, bei in m[:3]:
-            if name not in ["合計", "誘導基準"]:
-                rooms.append({'name': name, 'bpi': float(bei)})
-        if rooms: sample_data['worst_rooms'] = rooms
-        
-    return sample_data
+    # 今回は画像埋め込みのため、この関数は実質不要だが、インターフェースとして残す
+    return {}
