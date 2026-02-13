@@ -1,9 +1,10 @@
 streamlit
-python-pptx
-matplotlib
-pdfplumber
+pandas
 numpy
+matplotlib
 pillow
+python-pptx
+pdfplumber
 requests
 beautifulsoup4
 lxml
