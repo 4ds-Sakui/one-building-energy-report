@@ -1,0 +1,10 @@
+streamlit
+pandas
+numpy
+matplotlib
+pillow
+python-pptx
+pdfplumber
+requests
+beautifulsoup4
+lxml
