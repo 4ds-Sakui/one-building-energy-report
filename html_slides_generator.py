@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-HTMLスライド生成モジュール (v1.4.10)
+HTMLスライド生成モジュール (v1.4.11)
 モデル建物法詳細分析、ZEB比較、標準入力法チラ見せ
 """
 
 import base64
+import os
 from report_generator import COLOR_MAIN, COLOR_RED, COLOR_GREEN, COLOR_ACCENT, get_zeb_comparison, create_radar_chart
 
 def generate_html_slides(data, standard_sample_data=None):
@@ -21,17 +22,29 @@ def generate_html_slides(data, standard_sample_data=None):
         color = COLOR_GREEN if status == "達成" else COLOR_RED
         return '<span style="background-color: ' + color + '; color: white; padding: 2px 10px; border-radius: 5px; font-weight: bold;">' + status + '</span>'
 
-    # 画像ファイルをbase64エンコード
-    def get_image_base64(filepath):
+    # 画像ファイルをbase64エンコード（複数のパスを試す）
+    def get_image_base64(filename):
         try:
-            with open(filepath, "rb") as f:
-                return base64.b64encode(f.read()).decode("utf-8")
-        except FileNotFoundError:
+            # 複数のパスを試して画像を探す
+            possible_paths = [
+                os.path.join(os.path.dirname(__file__), filename),
+                os.path.join(os.path.dirname(__file__), 'streamlit_app', filename),
+                os.path.join('/home/ubuntu/streamlit_app', filename),
+                os.path.join('/app', filename),
+                os.path.join('/app/streamlit_app', filename),
+            ]
+            for filepath in possible_paths:
+                if os.path.exists(filepath):
+                    with open(filepath, "rb") as f:
+                        return base64.b64encode(f.read()).decode("utf-8")
+            return ""  # 画像が見つからない場合
+        except Exception as e:
+            print(f"Error loading image {filename}: {e}")
             return ""
 
-    individual_bpi_base64 = get_image_base64("/home/ubuntu/streamlit_app/individual_bpi.png")
-    energy_breakdown_base64 = get_image_base64("/home/ubuntu/streamlit_app/energy_breakdown.png")
-    energy_comparison_base64 = get_image_base64("/home/ubuntu/streamlit_app/energy_comparison.png")
+    individual_bpi_base64 = get_image_base64("individual_bpi.png")
+    energy_breakdown_base64 = get_image_base64("energy_breakdown.png")
+    energy_comparison_base64 = get_image_base64("energy_comparison.png")
 
     # 数値または文字列として安全に表示するためのヘルパー関数
     def format_value(value, fmt=None):
@@ -119,7 +132,7 @@ def generate_html_slides(data, standard_sample_data=None):
                 <h1>技術レポート</h1>
                 <p>""" + building_name + """</p>
                 <p style="font-size: 0.6em;">作成日: 2026.02.13</p>
-                <p style="font-size: 0.5em; position: absolute; bottom: 50px; right: 20px; color: rgba(255,255,255,0.8);">v1.4.10</p>
+                <p style="font-size: 0.5em; position: absolute; bottom: 50px; right: 20px; color: rgba(255,255,255,0.8);">v1.4.11</p>
                 <p style="font-size: 0.4em; position: absolute; bottom: 20px; width: 100%;">© 2026 one building</p>
             </section>
 

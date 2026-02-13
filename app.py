@@ -5,7 +5,7 @@ from html_slides_generator import generate_html_slides
 
 st.set_page_config(page_title="one building - 技術レポート生成", layout="wide")
 
-st.title("one building 技術レポート生成 (v1.4.10)")
+st.title("one building 技術レポート生成 (v1.4.11)")
 st.markdown("""
 Markdown形式の省エネ診断結果をアップロードしてください。
 モデル建物法の詳細分析と、標準入力法へのアップグレード提案を含むHTMLレポートを生成します。
