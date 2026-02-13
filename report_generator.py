@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-データ抽出・評価モジュール (v1.4.5)
+データ抽出・評価モジュール (v1.4.10)
 モデル建物法の詳細項目抽出、ZEB比較ロジック、標準入力法サンプル統合対応
 """
 
@@ -357,9 +357,10 @@ def create_radar_chart(data):
     ax.fill(angles, values, color=COLOR_MAIN, alpha=0.25)
     
     ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(categories)
+    ax.set_xticklabels(categories, fontproperties='Noto Sans CJK JP')
     ax.set_ylim(0, max(max(values), 1.5))
-    ax.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
+    ax.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1), prop={'family': 'Noto Sans CJK JP'})
+    plt.title('設備別BEIm分析', fontproperties='Noto Sans CJK JP', fontsize=14, pad=20)
     
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight', dpi=100)

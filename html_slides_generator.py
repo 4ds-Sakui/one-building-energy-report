@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-HTMLスライド生成モジュール (v1.4.5)
+HTMLスライド生成モジュール (v1.4.10)
 モデル建物法詳細分析、ZEB比較、標準入力法チラ見せ
 """
 
@@ -119,6 +119,7 @@ def generate_html_slides(data, standard_sample_data=None):
                 <h1>技術レポート</h1>
                 <p>""" + building_name + """</p>
                 <p style="font-size: 0.6em;">作成日: 2026.02.13</p>
+                <p style="font-size: 0.5em; position: absolute; bottom: 50px; right: 20px; color: rgba(255,255,255,0.8);">v1.4.10</p>
                 <p style="font-size: 0.4em; position: absolute; bottom: 20px; width: 100%;">© 2026 one building</p>
             </section>
 
@@ -217,20 +218,20 @@ def generate_html_slides(data, standard_sample_data=None):
                             <li>ZEB認定による企業価値向上</li>
                         </ul>
                     </div>
-                    <!-- 中央上: エネルギー消費量比較 -->
+                    <!-- 中央上: 基準値と設計値の比較 -->
                     <div style="grid-column: 2; grid-row: 1; text-align: center;">
                         <p style="font-size: 0.6em; color: #666; margin: 0 0 6px 0;"><b>基準値と設計値の比較</b></p>
-                        <img src="data:image/png;base64,""" + energy_comparison_base64 + """" style="width: 100%; height: auto;">
+                        """ + (f'<img src="data:image/png;base64,{energy_comparison_base64}" style="width: 100%; height: auto;">' if energy_comparison_base64 else '<p style="color: red;">画像が見つかりません</p>') + """
                     </div>
                     <!-- 中央下: 設備別エネルギー消費内訳 -->
                     <div style="grid-column: 2; grid-row: 2; text-align: center;">
                         <p style="font-size: 0.6em; color: #666; margin: 0 0 6px 0;"><b>設備別エネルギー消費内訳</b></p>
-                        <img src="data:image/png;base64,""" + energy_breakdown_base64 + """" style="width: 100%; height: auto;">
+                        """ + (f'<img src="data:image/png;base64,{energy_breakdown_base64}" style="width: 100%; height: auto;">' if energy_breakdown_base64 else '<p style="color: red;">画像が見つかりません</p>') + """
                     </div>
                     <!-- 右列: 室別の外皮性能評価 -->
                     <div style="grid-column: 3; grid-row: 1 / 3; text-align: center;">
                         <p style="font-size: 0.6em; color: #666; margin: 0 0 6px 0;"><b>室別の外皮性能評価</b></p>
-                        <img src="data:image/png;base64,""" + individual_bpi_base64 + """" style="width: 100%; height: auto;">
+                        """ + (f'<img src="data:image/png;base64,{individual_bpi_base64}" style="width: 100%; height: auto;">' if individual_bpi_base64 else '<p style="color: red;">画像が見つかりません</p>') + """
                     </div>
                 </div>
             </section>
